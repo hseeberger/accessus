@@ -9,8 +9,12 @@ lazy val accessus =
     .settings(settings)
     .settings(
       libraryDependencies ++= Seq(
-        library.scalaCheck % Test,
-        library.scalaTest  % Test
+        library.akkaHttp,
+        library.akkaStream,
+        library.akkaHttpTestkit   % Test,
+        library.akkaStreamTestkit % Test,
+        library.mockitoCore       % Test,
+        library.scalaTest         % Test
       )
     )
 
@@ -21,11 +25,18 @@ lazy val accessus =
 lazy val library =
   new {
     object Version {
+      val akka       = "2.5.2"
+      val akkaHttp   = "10.0.6"
       val scalaCheck = "1.13.5"
+      val mockito    = "2.8.9"
       val scalaTest  = "3.0.3"
     }
-    val scalaCheck = "org.scalacheck" %% "scalacheck" % Version.scalaCheck
-    val scalaTest  = "org.scalatest"  %% "scalatest"  % Version.scalaTest
+    val akkaHttp          = "com.typesafe.akka" %% "akka-http"           % Version.akkaHttp
+    val akkaHttpTestkit   = "com.typesafe.akka" %% "akka-http-testkit"   % Version.akkaHttp
+    val akkaStream        = "com.typesafe.akka" %% "akka-stream"         % Version.akka
+    val akkaStreamTestkit = "com.typesafe.akka" %% "akka-stream-testkit" % Version.akka
+    val mockitoCore       = "org.mockito"       %  "mockito-core"        % Version.mockito
+    val scalaTest         = "org.scalatest"     %% "scalatest"           % Version.scalaTest
   }
 
 // *****************************************************************************
