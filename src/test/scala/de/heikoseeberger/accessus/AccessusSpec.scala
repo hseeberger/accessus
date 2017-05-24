@@ -47,21 +47,22 @@ final class AccessusSpec extends AsyncWordSpec with Matchers with BeforeAndAfter
         val status = response.status.intValue
         s"$path-$status"
       }
-      run(withLoggingAccessLog(toMessage, log, Logging.DebugLevel)(route)).map { x =>
+      val wrappedHandler = withLoggingAccessLog(toMessage, log, Logging.DebugLevel)(route)
+      run(wrappedHandler).map { done =>
         verify(log).log(Logging.DebugLevel, "/test-204")
-        x shouldBe Done
+        done shouldBe Done
       }
     }
   }
 
   "withAccessLog" should {
     "wrap a handler with an access log" in {
-      run(withAccessLog(Sink.head)(route))
-        .map {
-          case (request, response) =>
-            request.uri.path.toString shouldBe "/test"
-            response.status shouldBe NoContent
-        }
+      val wrappedHandler = withAccessLog(Sink.head)(route)
+      run(wrappedHandler).map {
+        case (request, response) =>
+          request.uri.path.toString shouldBe "/test"
+          response.status shouldBe NoContent
+      }
     }
   }
 
