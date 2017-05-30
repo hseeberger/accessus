@@ -20,23 +20,58 @@ import akka.http.scaladsl.model.{ HttpRequest, HttpResponse }
 import akka.stream.FlowShape
 import akka.stream.scaladsl.{ Broadcast, Flow, GraphDSL, Sink, Zip }
 
+/**
+  * Provides the method [[Accessus.withAccessLog]] which wraps a handler within a new one which
+  * also streams request-response-pairs into a given sink.
+  *
+  *{{{
+  * +-----------------------------------------------------------------+
+  * |                                                                 |
+  * |      +----------+        +-----------+        +----------+      |
+  * |  +-->○ bcastReq ○------->○  handler  ○------->○ bcastRes ○--+   |
+  * |  |   +-----○----+        +-----------+        +-----○----+  |   |
+  * |  |         |                                        |       |   |
+  * |  |         |                                        v       |   |
+  * ○--+         |             +-----------+        +-----○----+  +-->○
+  * |            |             | accessLog ○<-------○   zip    |      |
+  * |            |             +-----------+        +-----○----+      |
+  * |            |                                        ^           |
+  * |            |                                        |           |
+  * |            +----------------------------------------+           |
+  * |                                                                 |
+  * +-----------------------------------------------------------------+
+  *}}}
+  */
 object Accessus {
 
+  /**
+    * A sink for request-response-pairs.
+    */
   type AccessLog[M] = Sink[(HttpRequest, HttpResponse), M]
 
+  /**
+    * A handler transforming requests into responses, required by `Http().bindAndHandle`.
+    */
   type Handler[M] = Flow[HttpRequest, HttpResponse, M]
 
+  /**
+    * Wraps the given handler within a new one which also streams request-response-pairs into the
+    * given sink.
+    * @param accessLog sink for request-response-pairs
+    * @param handler handler to be wrapped
+    * @return handler to be used in `Http().bindAndHandle` wrapping the given handler
+    */
   def withAccessLog[M](accessLog: AccessLog[M])(handler: Handler[Any]): Handler[M] =
-    Flow.fromGraph(GraphDSL.create(accessLog) { implicit builder => al =>
+    Flow.fromGraph(GraphDSL.create(accessLog) { implicit builder => accessLog =>
       import GraphDSL.Implicits._
       val bcastReq = builder.add(Broadcast[HttpRequest](2))
       val bcastRes = builder.add(Broadcast[HttpResponse](2))
       val zip      = builder.add(Zip[HttpRequest, HttpResponse])
       // format: OFF
-      bcastReq            ~>                    zip.in0
       bcastReq ~> handler ~> bcastRes
                              bcastRes.out(1) ~> zip.in1
-                                                zip.out ~> al
+                                                zip.out ~> accessLog
+      bcastReq            ~>                    zip.in0
       // format: ON
       FlowShape(bcastReq.in, bcastRes.out(0))
     })
