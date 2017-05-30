@@ -37,15 +37,17 @@ final class AccessusSpec extends AsyncWordSpec with Matchers with BeforeAndAfter
 
   "withAccessLog" should {
     "wrap a handler with an access log" in {
+      val t = now()
       Source
         .single(Get("/test"))
-        .viaMat(withAccessLog(Sink.head)(route))(Keep.right)
+        .viaMat(withAccessLog(_ -> now())(Sink.head, route))(Keep.right)
         .to(Sink.ignore)
         .run()
         .map {
-          case (request, response) =>
+          case ((request, t0), response) =>
             request.uri.path.toString shouldBe "/test"
             response.status shouldBe NoContent
+            t0 should be > t
         }
     }
   }
@@ -54,4 +56,6 @@ final class AccessusSpec extends AsyncWordSpec with Matchers with BeforeAndAfter
     Await.ready(system.terminate(), 42.seconds)
     super.afterAll()
   }
+
+  private def now() = System.nanoTime()
 }

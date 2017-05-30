@@ -21,6 +21,7 @@ import akka.actor.ActorSystem
 import akka.event.{ Logging, LoggingAdapter }
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
+import akka.http.scaladsl.model.HttpRequest
 import akka.http.scaladsl.server.{ Directives, Route }
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Sink
@@ -39,21 +40,22 @@ object Demo {
 
     val log = Logging(system, "ACCESS_LOG")
     Http()
-      .bindAndHandle(route.withAccessLog(loggingAccessLog(log)), "0.0.0.0", 8000)
+      .bindAndHandle(route.withAccessLog(_ -> now())(loggingAccessLog(log)), "0.0.0.0", 8000)
       .onComplete {
         case Success(ServerBinding(address)) => println(s"Listening on $address")
         case Failure(cause)                  => println(s"Can't bind to 0.0.0.0:8000: $cause")
       }
   }
 
-  /** Log HTTP method, path and status to the given log at info level. */
-  def loggingAccessLog(log: LoggingAdapter): AccessLog[Future[Done]] =
+  /** Log HTTP method, path, status and response time in micros to the given log at info level. */
+  def loggingAccessLog(log: LoggingAdapter): AccessLog[(HttpRequest, Long), Future[Done]] =
     Sink.foreach {
-      case (req, res) =>
+      case ((req, t0), res) =>
         val m = req.method.value
         val p = req.uri.path.toString
         val s = res.status.intValue()
-        log.info(s"$m $p $s")
+        val t = (now() - t0) / 1000
+        log.info(s"$m $p $s $t")
     }
 
   /** Simply echo the path for all GET requests. */
@@ -65,4 +67,6 @@ object Demo {
       }
     }
   }
+
+  private def now() = System.nanoTime()
 }
