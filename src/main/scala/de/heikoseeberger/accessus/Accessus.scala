@@ -16,13 +16,15 @@
 
 package de.heikoseeberger.accessus
 
+import akka.actor.ActorSystem
 import akka.http.scaladsl.model.{ HttpRequest, HttpResponse }
-import akka.stream.FlowShape
+import akka.http.scaladsl.server.Route
+import akka.stream.{ ActorMaterializer, FlowShape }
 import akka.stream.scaladsl.{ Broadcast, Flow, GraphDSL, Sink, Zip }
 
 /**
   * Provides the method [[Accessus.withAccessLog]] which wraps a handler within a new one which
-  * also streams request-response-pairs into a given sink.
+  * also streams request-response-pairs into a given access log sink.
   *
   *{{{
   * +-----------------------------------------------------------------+
@@ -54,9 +56,34 @@ object Accessus {
     */
   type Handler[M] = Flow[HttpRequest, HttpResponse, M]
 
+  implicit class RouteOps(val route: Route) extends AnyVal {
+
+    /**
+      * Wraps the route within a new handler which also streams request-response-pairs into the
+      * given access log sink.
+      * @param accessLog sink for request-response-pairs
+      * @return handler to be used in `Http().bindAndHandle` wrapping the given route
+      */
+    def withAccessLog[M](accessLog: AccessLog[M])(implicit sytem: ActorSystem,
+                                                  mat: ActorMaterializer): Handler[M] =
+      Accessus.withAccessLog(accessLog)(Route.handlerFlow(route))
+  }
+
+  implicit class HandlerOps(val handler: Handler[Any]) extends AnyVal {
+
+    /**
+      * Wraps the handler within a new one which also streams request-response-pairs into the given
+      * access log sink.
+      * @param accessLog sink for request-response-pairs
+      * @return handler to be used in `Http().bindAndHandle` wrapping the given handler
+      */
+    def withAccessLog[M](accessLog: AccessLog[M]): Handler[M] =
+      Accessus.withAccessLog(accessLog)(handler)
+  }
+
   /**
     * Wraps the given handler within a new one which also streams request-response-pairs into the
-    * given sink.
+    * access log given sink.
     * @param accessLog sink for request-response-pairs
     * @param handler handler to be wrapped
     * @return handler to be used in `Http().bindAndHandle` wrapping the given handler
