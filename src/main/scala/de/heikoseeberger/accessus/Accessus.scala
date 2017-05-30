@@ -23,8 +23,8 @@ import akka.stream.{ ActorMaterializer, FlowShape }
 import akka.stream.scaladsl.{ Broadcast, Flow, GraphDSL, Sink, Zip }
 
 /**
-  * Provides the method [[Accessus.withAccessLog]] which wraps a handler within a new one which
-  * also streams request-response-pairs into a given access log sink.
+  * Provides ways to wrap a route or request-response handler in a new handler which also streams
+  * request-response pairs to an access log sink:
   *
   *{{{
   * +-----------------------------------------------------------------+
@@ -43,25 +43,37 @@ import akka.stream.scaladsl.{ Broadcast, Flow, GraphDSL, Sink, Zip }
   * |                                                                 |
   * +-----------------------------------------------------------------+
   *}}}
+  *
+  *Example:
+  *
+  *{{{
+  *import Accessus._
+  *Http().bindAndHandle(
+  *  route.withAccessLog(Sink.foreach { case (req, res) => ??? }),
+  *  "0.0.0.0",
+  *  8000
+  *)
+  *}}}
+  *
   */
 object Accessus {
 
   /**
-    * A sink for request-response-pairs.
+    * A sink for request-response pairs.
     */
   type AccessLog[M] = Sink[(HttpRequest, HttpResponse), M]
 
   /**
-    * A handler transforming requests into responses, required by `Http().bindAndHandle`.
+    * A request-response handler as required by `Http().bindAndHandle`.
     */
   type Handler[M] = Flow[HttpRequest, HttpResponse, M]
 
   implicit class RouteOps(val route: Route) extends AnyVal {
 
     /**
-      * Wraps the route within a new handler which also streams request-response-pairs into the
-      * given access log sink.
-      * @param accessLog sink for request-response-pairs
+      * Wraps the route in a new request-response handler which also streams request-response pairs
+      * to the given access log sink.
+      * @param accessLog sink for request-response pairs
       * @return handler to be used in `Http().bindAndHandle` wrapping the given route
       */
     def withAccessLog[M](accessLog: AccessLog[M])(implicit sytem: ActorSystem,
@@ -72,9 +84,9 @@ object Accessus {
   implicit class HandlerOps(val handler: Handler[Any]) extends AnyVal {
 
     /**
-      * Wraps the handler within a new one which also streams request-response-pairs into the given
-      * access log sink.
-      * @param accessLog sink for request-response-pairs
+      * Wraps the request-response handler in a new one which also streams request-response pairs
+      * to the given access log sink.
+      * @param accessLog sink for request-response pairs
       * @return handler to be used in `Http().bindAndHandle` wrapping the given handler
       */
     def withAccessLog[M](accessLog: AccessLog[M]): Handler[M] =
@@ -82,9 +94,9 @@ object Accessus {
   }
 
   /**
-    * Wraps the given handler within a new one which also streams request-response-pairs into the
-    * access log given sink.
-    * @param accessLog sink for request-response-pairs
+    * Wraps the given request-response handler in a new one which also streams request-response
+    * pairs to the access log given sink.
+    * @param accessLog sink for request-response pairs
     * @param handler handler to be wrapped
     * @return handler to be used in `Http().bindAndHandle` wrapping the given handler
     */
