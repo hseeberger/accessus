@@ -16,26 +16,15 @@
 
 package de.heikoseeberger.accessus
 
-import akka.Done
-import akka.event.Logging.LogLevel
-import akka.event.{ Logging, LoggingAdapter }
 import akka.http.scaladsl.model.{ HttpRequest, HttpResponse }
 import akka.stream.FlowShape
 import akka.stream.scaladsl.{ Broadcast, Flow, GraphDSL, Sink, Zip }
-import scala.concurrent.Future
 
 object Accessus {
 
   type AccessLog[M] = Sink[(HttpRequest, HttpResponse), M]
 
   type Handler[M] = Flow[HttpRequest, HttpResponse, M]
-
-  def withLoggingAccessLog(
-      toMessage: (HttpRequest, HttpResponse) => String,
-      log: LoggingAdapter,
-      level: LogLevel = Logging.InfoLevel
-  )(handler: Handler[Any]): Handler[Future[Done]] =
-    withAccessLog(Sink.foreach { case (req, res) => log.log(level, toMessage(req, res)) })(handler)
 
   def withAccessLog[M](accessLog: AccessLog[M])(handler: Handler[Any]): Handler[M] =
     Flow.fromGraph(GraphDSL.create(accessLog) { implicit builder => al =>

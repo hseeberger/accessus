@@ -16,11 +16,8 @@
 
 package de.heikoseeberger.accessus
 
-import akka.Done
 import akka.actor.ActorSystem
-import akka.event.{ Logging, LoggingAdapter }
 import akka.http.scaladsl.client.RequestBuilding.Get
-import akka.http.scaladsl.model.{ HttpRequest, HttpResponse }
 import akka.http.scaladsl.model.StatusCodes.NoContent
 import akka.http.scaladsl.server.Directives
 import akka.stream.ActorMaterializer
@@ -28,7 +25,6 @@ import akka.stream.scaladsl.{ Keep, Sink, Source }
 import org.scalatest.{ AsyncWordSpec, BeforeAndAfterAll, Matchers }
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
-import org.mockito.Mockito.{ mock, verify }
 
 final class AccessusSpec extends AsyncWordSpec with Matchers with BeforeAndAfterAll {
   import Accessus._
@@ -39,30 +35,18 @@ final class AccessusSpec extends AsyncWordSpec with Matchers with BeforeAndAfter
 
   private val route = Directives.path("test") & Directives.get & Directives.complete(NoContent)
 
-  "withLoggingAccessLog" should {
-    "wrap a handler in a logging access log" in {
-      val log = mock(classOf[LoggingAdapter])
-      def toMessage(request: HttpRequest, response: HttpResponse) = {
-        val path   = request.uri.path
-        val status = response.status.intValue
-        s"$path-$status"
-      }
-      val wrappedHandler = withLoggingAccessLog(toMessage, log, Logging.DebugLevel)(route)
-      run(wrappedHandler).map { done =>
-        verify(log).log(Logging.DebugLevel, "/test-204")
-        done shouldBe Done
-      }
-    }
-  }
-
   "withAccessLog" should {
     "wrap a handler with an access log" in {
-      val wrappedHandler = withAccessLog(Sink.head)(route)
-      run(wrappedHandler).map {
-        case (request, response) =>
-          request.uri.path.toString shouldBe "/test"
-          response.status shouldBe NoContent
-      }
+      Source
+        .single(Get("/test"))
+        .viaMat(withAccessLog(Sink.head)(route))(Keep.right)
+        .to(Sink.ignore)
+        .run()
+        .map {
+          case (request, response) =>
+            request.uri.path.toString shouldBe "/test"
+            response.status shouldBe NoContent
+        }
     }
   }
 
@@ -70,11 +54,4 @@ final class AccessusSpec extends AsyncWordSpec with Matchers with BeforeAndAfter
     Await.ready(system.terminate(), 42.seconds)
     super.afterAll()
   }
-
-  private def run[A](handler: Handler[A]) =
-    Source
-      .single(Get("/test"))
-      .viaMat(handler)(Keep.right)
-      .to(Sink.ignore)
-      .run()
 }
