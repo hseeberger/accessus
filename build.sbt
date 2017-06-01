@@ -11,8 +11,7 @@ lazy val accessus =
       libraryDependencies ++= Seq(
         library.akkaHttp,
         library.akkaStream,
-        library.mockitoCore % Test,
-        library.scalaTest   % Test
+        library.scalaTest % Test
       )
     )
 
@@ -25,13 +24,11 @@ lazy val library =
     object Version {
       val akka      = "2.5.2"
       val akkaHttp  = "10.0.7"
-      val mockito   = "2.8.9"
       val scalaTest = "3.0.3"
     }
-    val akkaHttp    = "com.typesafe.akka" %% "akka-http"    % Version.akkaHttp
-    val akkaStream  = "com.typesafe.akka" %% "akka-stream"  % Version.akka
-    val mockitoCore = "org.mockito"       %  "mockito-core" % Version.mockito
-    val scalaTest   = "org.scalatest"     %% "scalatest"    % Version.scalaTest
+    val akkaHttp    = "com.typesafe.akka" %% "akka-http"   % Version.akkaHttp
+    val akkaStream  = "com.typesafe.akka" %% "akka-stream" % Version.akka
+    val scalaTest   = "org.scalatest"     %% "scalatest"   % Version.scalaTest
   }
 
 // *****************************************************************************

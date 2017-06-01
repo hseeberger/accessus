@@ -1,6 +1,59 @@
-# accessus #
+# Accessus #
 
-Welcome to accessus!
+Accessus is a micro library (micro all the things!) providing an access log for Akka HTTP based
+servers.
+
+Example:
+
+``` scala
+object Demo {
+  import Accessus._
+
+  def main(args: Array[String]): Unit = {
+    implicit val system = ActorSystem()
+    implicit val mat    = ActorMaterializer()
+    import system.dispatcher
+
+    Http()
+      .bindAndHandle(
+        route.withAccessLog(_ -> now())(accessLog(Logging(system, "ACCESS_LOG"))),
+        "0.0.0.0",
+        8000
+      )
+      .onComplete {
+        case Success(ServerBinding(address)) => println(s"Listening on $address")
+        case Failure(cause)                  => println(s"Can't bind to 0.0.0.0:8000: $cause")
+      }
+
+    StdIn.readLine(f"Hit ENTER to quit!%n")
+    system.terminate()
+  }
+
+  /** Log HTTP method, path, status and response time in micros to the given log at info level. */
+  def accessLog(log: LoggingAdapter): AccessLog[(HttpRequest, Long), Future[Done]] =
+    Sink.foreach {
+      case ((req, t0), res) =>
+        val m = req.method.value
+        val p = req.uri.path.toString
+        val s = res.status.intValue()
+        val t = (now() - t0) / 1000
+        log.info(s"$m $p $s $t")
+    }
+
+  /** Simply echo the path for all GET requests. */
+  def route: Route = {
+    import Directives._
+    get {
+      extractUnmatchedPath { path =>
+        complete(path.toString)
+      }
+    }
+  }
+
+  private def now() = System.nanoTime()
+}
+```
+
 
 ## Contribution policy ##
 

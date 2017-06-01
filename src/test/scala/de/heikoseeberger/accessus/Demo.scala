@@ -25,30 +25,35 @@ import akka.http.scaladsl.model.HttpRequest
 import akka.http.scaladsl.server.{ Directives, Route }
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Sink
-import de.heikoseeberger.accessus.Accessus.AccessLog
 import scala.concurrent.Future
+import scala.io.StdIn
 import scala.util.{ Failure, Success }
 
 object Demo {
+  import Accessus._
 
   def main(args: Array[String]): Unit = {
     implicit val system = ActorSystem()
     implicit val mat    = ActorMaterializer()
-
-    import Accessus._
     import system.dispatcher
 
-    val log = Logging(system, "ACCESS_LOG")
     Http()
-      .bindAndHandle(route.withAccessLog(_ -> now())(loggingAccessLog(log)), "0.0.0.0", 8000)
+      .bindAndHandle(
+        route.withAccessLog(_ -> now())(accessLog(Logging(system, "ACCESS_LOG"))),
+        "0.0.0.0",
+        8000
+      )
       .onComplete {
         case Success(ServerBinding(address)) => println(s"Listening on $address")
         case Failure(cause)                  => println(s"Can't bind to 0.0.0.0:8000: $cause")
       }
+
+    StdIn.readLine(f"Hit ENTER to quit!%n")
+    system.terminate()
   }
 
   /** Log HTTP method, path, status and response time in micros to the given log at info level. */
-  def loggingAccessLog(log: LoggingAdapter): AccessLog[(HttpRequest, Long), Future[Done]] =
+  def accessLog(log: LoggingAdapter): AccessLog[(HttpRequest, Long), Future[Done]] =
     Sink.foreach {
       case ((req, t0), res) =>
         val m = req.method.value
