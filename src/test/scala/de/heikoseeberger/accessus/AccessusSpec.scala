@@ -49,27 +49,27 @@ final class AccessusSpec
 
   "RouteOps" should {
     "add a withAccessLog extension method" in {
-      run(route.withAccessLog(Sink.head))
+      runAndAssert(route.withAccessLog(Sink.head))
     }
 
     "add a withAccessLog extension method which takes an extension function" in {
-      runAndAssert(route.withAccessLog(_ -> now())(Sink.head))
+      runAndAssert(route.withAccessLog(() => now())(Sink.head))
     }
   }
 
   "HandlerOps" should {
     "add a withAccessLog extension method" in {
-      run(Route.handlerFlow(route).withAccessLog(Sink.head))
+      runAndAssert(Route.handlerFlow(route).withAccessLog(Sink.head))
     }
 
     "add a withAccessLog extension method which takes an extension function" in {
-      runAndAssert(Route.handlerFlow(route).withAccessLog(_ -> now())(Sink.head))
+      runAndAssert(Route.handlerFlow(route).withAccessLog(() => now())(Sink.head))
     }
   }
 
   "withAccessLog" should {
     "wrap a handler in a new one which also streams enriched request-response pairs to a sink" in {
-      runAndAssert(withAccessLog(_ -> now())(Sink.head, route))
+      runAndAssert(withAccessLog(() => now())(Sink.head, route))
     }
   }
 
@@ -77,18 +77,6 @@ final class AccessusSpec
     Await.ready(system.terminate(), 42.seconds)
     super.afterAll()
   }
-
-  private def run(handler: Handler[Future[(HttpRequest, HttpResponse)]]) =
-    Source
-      .single(Get("/test"))
-      .viaMat(handler)(Keep.right)
-      .to(Sink.ignore)
-      .run()
-      .map {
-        case (request, response) =>
-          request.uri.path.toString shouldBe "/test"
-          response.status shouldBe OK
-      }
 
   private def runAndAssert(handler: Handler[Future[((HttpRequest, Long), HttpResponse)]]) = {
     val t = now()

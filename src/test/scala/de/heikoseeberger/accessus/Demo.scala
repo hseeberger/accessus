@@ -21,7 +21,6 @@ import akka.actor.ActorSystem
 import akka.event.{ Logging, LoggingAdapter }
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
-import akka.http.scaladsl.model.HttpRequest
 import akka.http.scaladsl.server.{ Directives, Route }
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Sink
@@ -39,7 +38,7 @@ object Demo {
 
     Http()
       .bindAndHandle(
-        route.withAccessLog(_ -> now())(accessLog(Logging(system, "ACCESS_LOG"))),
+        route.withAccessLog(accessLog(Logging(system, "ACCESS_LOG"))),
         "0.0.0.0",
         8000
       )
@@ -53,7 +52,7 @@ object Demo {
   }
 
   /** Log HTTP method, path, status and response time in micros to the given log at info level. */
-  def accessLog(log: LoggingAdapter): AccessLog[(HttpRequest, Long), Future[Done]] =
+  def accessLog(log: LoggingAdapter): AccessLog[Long, Future[Done]] =
     Sink.foreach {
       case ((req, t0), res) =>
         val m = req.method.value

@@ -20,30 +20,26 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.model.{ HttpRequest, HttpResponse }
 import akka.http.scaladsl.server.Route
 import akka.stream.{ ActorMaterializer, FlowShape }
-import akka.stream.scaladsl.{ Broadcast, Flow, GraphDSL, Sink, Zip }
+import akka.stream.scaladsl.{ Broadcast, Flow, GraphDSL, Sink, Unzip, Zip }
 
 /**
   * Provides ways to wrap a route or request-response handler in a new handler which also streams
-  * request-response pairs to an access log sink:
+  * pairs of enriched request and response to an access log sink:
   *
   *{{{
-  *+-----------------------------------------------------------------+
-  *|                                                                 |
-  *|                          +-----------+                          |
-  *|            +------------>○  handler  ○-------------+            |
-  *|            |             +-----------+             |            |
-  *|            |                                       |            |
-  *|            |                                       v            |
-  *|      +-----○-----+       +-----------+       +-----○-----+      |
-  *○----->○ bcastReq  |------>○ enrichReq |       |  bcastRes ○----->○
-  *|      +-----○-----+       +-----○-----+       +-----○-----+      |
-  *|                                |                   |            |
-  *|                                v                   |            |
-  *|      +-----------+       +-----○-----+             |            |
-  *|      | accessLog ○<------○    zip    ○<------------+            |
-  *|      +-----------+       +-----------+                          |
-  *|                                                                 |
-  *+-----------------------------------------------------------------+
+  *+------------------------------------------------------------------------------------+
+  *|                                                                                    |
+  *|        +-----------+      +-----------+      +-----------+      +-----------+      |
+  *|   +--->○ enrichReq ○----->○   unzip   ○----->○  handler  ○----->○  bcastRes ○--+   |
+  *|   |    +-----------+      +-----○-----+      +-----------+      +-----------+  |   |
+  *|   |                             |                                     |        |   |
+  *○---+                             |                                     |        +-->○
+  *|                                 v                                     |            |
+  *|        +-----------+      +-----○-----+                               |            |
+  *|        | accessLog ○<-----○    zip    ○<------------------------------+            |
+  *|        +-----------+      +-----------+                                            |
+  *|                                                                                    |
+  *+------------------------------------------------------------------------------------+
   *}}}
   *
   *Example:
@@ -51,7 +47,7 @@ import akka.stream.scaladsl.{ Broadcast, Flow, GraphDSL, Sink, Zip }
   *{{{
   *import Accessus._
   *Http().bindAndHandle(
-  *  route.withAccessLog(Sink.foreach { case (req, res) => ??? }),
+  *  route.withAccessLog(Sink.foreach { case ((req, t), res) => ??? }),
   *  "0.0.0.0",
   *  8000
   *)
@@ -61,9 +57,9 @@ import akka.stream.scaladsl.{ Broadcast, Flow, GraphDSL, Sink, Zip }
 object Accessus {
 
   /**
-    * A sink for request-response pairs.
+    * A sink for pairs of enriched request and response.
     */
-  type AccessLog[A, M] = Sink[(A, HttpResponse), M]
+  type AccessLog[A, M] = Sink[((HttpRequest, A), HttpResponse), M]
 
   /**
     * A request-response handler as required by `Http().bindAndHandle`.
@@ -73,24 +69,24 @@ object Accessus {
   implicit class RouteOps(val route: Route) extends AnyVal {
 
     /**
-      * Wraps the route in a new request-response handler which also streams request-response pairs
-      * to the given access log sink.
-      * @param accessLog sink for request-response pairs
+      * Wraps the route in a new request-response handler which also streams pairs of request
+      * enriched with a timestamp and response to the given access log sink.
+      * @param accessLog sink for pairs of enriched request and response
       * @return handler to be used in `Http().bindAndHandle` wrapping the given route
       */
     def withAccessLog[M](
-        accessLog: AccessLog[HttpRequest, M]
+        accessLog: AccessLog[Long, M]
     )(implicit sytem: ActorSystem, mat: ActorMaterializer): Handler[M] =
-      Accessus.withAccessLog(identity)(accessLog, Route.handlerFlow(route))
+      Accessus.withAccessLog(() => System.nanoTime())(accessLog, Route.handlerFlow(route))
 
     /**
-      * Wraps the route in a new request-response handler which also streams request-response pairs
-      * to the given access log sink.
-      * @param accessLog sink for request-response pairs
-      * @param f transform the request, e.g. enrich it with a timestamp
+      * Wraps the route in a new request-response handler which also streams sink for pairs of
+      * enriched request and response to the given access log sink.
+      * @param accessLog sink for pairs of enriched request and response
+      * @param f enrich the request, e.g. with a timestamp
       * @return handler to be used in `Http().bindAndHandle` wrapping the given route
       */
-    def withAccessLog[A, M](f: HttpRequest => A)(
+    def withAccessLog[A, M](f: () => A)(
         accessLog: AccessLog[A, M]
     )(implicit sytem: ActorSystem, mat: ActorMaterializer): Handler[M] =
       Accessus.withAccessLog(f)(accessLog, Route.handlerFlow(route))
@@ -99,47 +95,48 @@ object Accessus {
   implicit class HandlerOps(val handler: Handler[Any]) extends AnyVal {
 
     /**
-      * Wraps the request-response handler in a new one which also streams request-response pairs
-      * to the given access log sink.
-      * @param accessLog sink for request-response pairs
+      * Wraps the request-response handler in a new one which also streams sink for pairs of
+      * request enriched with a timestamp and response to the given access log sink.
+      * @param accessLog sink for pairs of enriched request and response
       * @return handler to be used in `Http().bindAndHandle` wrapping the given handler
       */
-    def withAccessLog[M](accessLog: AccessLog[HttpRequest, M]): Handler[M] =
-      Accessus.withAccessLog(identity)(accessLog, handler)
+    def withAccessLog[M](accessLog: AccessLog[Long, M]): Handler[M] =
+      Accessus.withAccessLog(() => System.nanoTime())(accessLog, handler)
 
     /**
-      * Wraps the request-response handler in a new one which also streams request-response pairs
-      * to the given access log sink.
-      * @param accessLog sink for request-response pairs
-      * @param f transform the request, e.g. enrich it with a timestamp
+      * Wraps the request-response handler in a new one which also streams sink for pairs of
+      * enriched request and response to the given access log sink.
+      * @param accessLog sink for pairs of enriched request and response
+      * @param f enrich the request, e.g. with a timestamp
       * @return handler to be used in `Http().bindAndHandle` wrapping the given handler
       */
-    def withAccessLog[A, M](f: HttpRequest => A)(accessLog: AccessLog[A, M]): Handler[M] =
+    def withAccessLog[A, M](f: () => A)(accessLog: AccessLog[A, M]): Handler[M] =
       Accessus.withAccessLog(f)(accessLog, handler)
   }
 
   /**
-    * Wraps the given request-response handler in a new one which also streams request-response
-    * pairs to the access log given sink.
-    * @param accessLog sink for request-response pairs
-    * @param f transform the request, e.g. enrich it with a timestamp
+    * Wraps the given request-response handler in a new one which also streams sink for pairs of
+    * enriched request and response pairs to the access log given sink.
+    * @param accessLog sink for pairs of enriched request and response
+    * @param f enrich the request, e.g. with a timestamp
     * @param handler handler to be wrapped
     * @return handler to be used in `Http().bindAndHandle` wrapping the given handler
     */
-  def withAccessLog[A, M](f: HttpRequest => A)(accessLog: AccessLog[A, M],
-                                               handler: Handler[Any]): Handler[M] =
+  def withAccessLog[A, M](f: () => A)(accessLog: AccessLog[A, M],
+                                      handler: Handler[Any]): Handler[M] =
     Flow.fromGraph(GraphDSL.create(accessLog) { implicit builder => accessLog =>
       import GraphDSL.Implicits._
-      val bcastReq  = builder.add(Broadcast[HttpRequest](2))
+      val enrichReq = builder.add(Flow[HttpRequest].map(req => (req, (req, f()))))
+      val unzip     = builder.add(Unzip[HttpRequest, (HttpRequest, A)]())
       val bcastRes  = builder.add(Broadcast[HttpResponse](2))
-      val zip       = builder.add(Zip[A, HttpResponse])
-      val enrichReq = builder.add(Flow[HttpRequest].map(f))
+      val zip       = builder.add(Zip[(HttpRequest, A), HttpResponse])
       // format: OFF
-      bcastReq ~> handler ~> bcastRes
-                             bcastRes.out(1) ~> zip.in1
-                                                zip.out ~> accessLog
-      bcastReq            ~> enrichReq       ~> zip.in0
+      enrichReq ~> unzip.in
+                   unzip.out0 ~> handler ~> bcastRes
+                                            bcastRes.out(1) ~> zip.in1
+                   unzip.out1            ~>                    zip.in0
+                                                               zip.out ~> accessLog
       // format: ON
-      FlowShape(bcastReq.in, bcastRes.out(0))
+      FlowShape(enrichReq.in, bcastRes.out(0))
     })
 }
