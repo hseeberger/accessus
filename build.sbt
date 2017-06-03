@@ -66,3 +66,15 @@ lazy val gitSettings =
   Seq(
     git.useGitDescribe := true
   )
+
+lazy val publishSettings =
+  Seq(
+    homepage := Some(url("https://github.com/hseeberger/accessus")),
+    scmInfo := Some(ScmInfo(url("https://github.com/hseeberger/accessus"),
+                            "git@github.com:hseeberger/accessus.git")),
+    developers += Developer("hseeberger",
+                            "Heiko Seeberger",
+                            "mail@heikoseeberger.de",
+                            url("https://github.com/hseeberger")),
+    pomIncludeRepository := (_ => false)
+  )

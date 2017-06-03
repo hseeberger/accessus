@@ -1,11 +1,39 @@
 # Accessus #
 
+[![Build Status](https://travis-ci.org/hseeberger/accessus.svg?branch=master)](https://travis-ci.org/hseeberger/accessus)
+[![Maven Central](https://img.shields.io/maven-central/v/de.heikoseeberger/accessus_2.12.svg)](https://maven-badges.herokuapp.com/maven-central/de.heikoseeberger/accessus_2.12)
+
 Accessus is a micro library (micro all the things!) providing an access log for Akka HTTP based
 servers.
+
+Accessus is published to Bintray and Maven Central.
+
+``` scala
+// All releases including intermediate ones are published here,
+// final ones are also published to Maven Central.
+resolvers += Resolver.bintrayRepo("hseeberger", "maven")
+
+libraryDependencies ++= Seq(
+  "de.heikoseeberger" %% "accessus" % "0.1.0",
+  ...
+)
+```
 
 Example:
 
 ``` scala
+import akka.Done
+import akka.actor.ActorSystem
+import akka.event.{ Logging, LoggingAdapter }
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.Http.ServerBinding
+import akka.http.scaladsl.server.{ Directives, Route }
+import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.Sink
+import scala.concurrent.Future
+import scala.io.StdIn
+import scala.util.{ Failure, Success }
+
 object Demo {
   import Accessus._
 
@@ -16,7 +44,7 @@ object Demo {
 
     Http()
       .bindAndHandle(
-        route.withAccessLog(_ -> now())(accessLog(Logging(system, "ACCESS_LOG"))),
+        route.withAccessLog(accessLog(Logging(system, "ACCESS_LOG"))),
         "0.0.0.0",
         8000
       )
@@ -30,7 +58,7 @@ object Demo {
   }
 
   /** Log HTTP method, path, status and response time in micros to the given log at info level. */
-  def accessLog(log: LoggingAdapter): AccessLog[(HttpRequest, Long), Future[Done]] =
+  def accessLog(log: LoggingAdapter): AccessLog[Long, Future[Done]] =
     Sink.foreach {
       case ((req, t0), res) =>
         val m = req.method.value
