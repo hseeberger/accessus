@@ -37,7 +37,8 @@ lazy val library =
 
 lazy val settings =
   commonSettings ++
-  gitSettings
+  gitSettings ++
+  publishSettings
 
 lazy val commonSettings =
   Seq(
