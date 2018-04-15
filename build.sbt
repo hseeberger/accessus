@@ -9,8 +9,9 @@ lazy val accessus =
     .settings(settings)
     .settings(
       libraryDependencies ++= Seq(
-        library.scalaCheck % Test,
-        library.utest      % Test
+        library.akkaHttp,
+        library.akkaStream,
+        library.utest       % Test
       )
     )
 
@@ -21,11 +22,13 @@ lazy val accessus =
 lazy val library =
   new {
     object Version {
-      val scalaCheck = "1.13.5"
-      val utest      = "0.6.4"
+      val akka      = "2.5.12"
+      val akkaHttp  = "10.1.1"
+      val utest     = "0.6.4"
     }
-    val scalaCheck = "org.scalacheck" %% "scalacheck" % Version.scalaCheck
-    val utest      = "com.lihaoyi"    %% "utest"      % Version.utest
+    val akkaHttp   = "com.typesafe.akka" %% "akka-http"   % Version.akkaHttp
+    val akkaStream = "com.typesafe.akka" %% "akka-stream" % Version.akka
+    val utest      = "com.lihaoyi"       %% "utest"       % Version.utest
   }
 
 // *****************************************************************************
