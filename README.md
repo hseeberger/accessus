@@ -1,6 +1,23 @@
-# accessus #
+# Accessus #
 
-Welcome to accessus!
+Provides ways to wrap a route or request-response handler in a new handler which also streams pairs
+of enriched request and response to an access log sink:
+
+```text
++------------------------------------------------------------------------------------+
+|                                                                                    |
+|        +-----------+      +-----------+      +-----------+      +-----------+      |
+|   +--->○ enrichReq ○----->○   unzip   ○----->○  handler  ○----->○  bcastRes ○--+   |
+|   |    +-----------+      +-----○-----+      +-----------+      +-----------+  |   |
+|   |                             |                                     |        |   |
+○---+                             |                                     |        +-->○
+|                                 v                                     |            |
+|        +-----------+      +-----○-----+                               |            |
+|        | accessLog ○<-----○    zip    ○<------------------------------+            |
+|        +-----------+      +-----------+                                            |
+|                                                                                    |
++------------------------------------------------------------------------------------+
+```
 
 ## Contribution policy ##
 
