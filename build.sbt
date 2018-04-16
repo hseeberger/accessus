@@ -37,7 +37,8 @@ lazy val library =
 
 lazy val settings =
   commonSettings ++
-  scalafmtSettings
+  scalafmtSettings ++
+  publishSettings
 
 lazy val commonSettings =
   Seq(
@@ -63,4 +64,16 @@ lazy val commonSettings =
 lazy val scalafmtSettings =
   Seq(
     scalafmtOnCompile := true
+  )
+
+lazy val publishSettings =
+  Seq(
+    homepage := Some(url("https://github.com/hseeberger/accessus")),
+    scmInfo := Some(ScmInfo(url("https://github.com/hseeberger/accessus"),
+                            "git@github.com:hseeberger/accessus.git")),
+    developers += Developer("hseeberger",
+                            "Heiko Seeberger",
+                            "mail@heikoseeberger.de",
+                            url("https://github.com/hseeberger")),
+    pomIncludeRepository := (_ => false)
   )
