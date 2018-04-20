@@ -19,7 +19,7 @@ package rocks.heikoseeberger.accessus
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.{ HttpRequest, HttpResponse }
 import akka.http.scaladsl.server.Route
-import akka.stream.{ ActorMaterializer, FlowShape }
+import akka.stream.{ FlowShape, Materializer }
 import akka.stream.scaladsl.{ Broadcast, Flow, GraphDSL, Sink, Unzip, Zip }
 
 /**
@@ -66,7 +66,7 @@ object Accessus {
     */
   type Handler[M] = Flow[HttpRequest, HttpResponse, M]
 
-  implicit class RouteOps(val route: Route) extends AnyVal {
+  final implicit class RouteOps(val route: Route) extends AnyVal {
 
     /**
       * Wraps the route in a new request-response handler which also streams pairs of request
@@ -75,7 +75,7 @@ object Accessus {
       * @return handler to be used in `Http().bindAndHandle` wrapping the given route
       */
     def withAccessLog[M](accessLog: AccessLog[Long, M])(implicit sytem: ActorSystem,
-                                                        mat: ActorMaterializer): Handler[M] =
+                                                        mat: Materializer): Handler[M] =
       Accessus.withAccessLog(() => System.nanoTime())(accessLog, Route.handlerFlow(route))
 
     /**
@@ -87,11 +87,11 @@ object Accessus {
       */
     def withAccessLog[A, M](
         f: () => A
-    )(accessLog: AccessLog[A, M])(implicit sytem: ActorSystem, mat: ActorMaterializer): Handler[M] =
+    )(accessLog: AccessLog[A, M])(implicit sytem: ActorSystem, mat: Materializer): Handler[M] =
       Accessus.withAccessLog(f)(accessLog, Route.handlerFlow(route))
   }
 
-  implicit class HandlerOps(val handler: Handler[Any]) extends AnyVal {
+  final implicit class HandlerOps(val handler: Handler[Any]) extends AnyVal {
 
     /**
       * Wraps the request-response handler in a new one which also streams sink for pairs of
