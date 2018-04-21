@@ -69,8 +69,8 @@ object Accessus {
   final implicit class RouteOps(val route: Route) extends AnyVal {
 
     /**
-      * Wraps the route in a new request-response handler which also streams pairs of request
-      * enriched with a timestamp and response to the given access log sink.
+      * Wraps the route in a new request-response handler which also streams pairs of
+      * timestamp-enriched request and response to the given access log sink.
       * @param accessLog sink for pairs of enriched request and response
       * @return handler to be used in `Http().bindAndHandle` wrapping the given route
       */
@@ -79,8 +79,8 @@ object Accessus {
       Accessus.withAccessLog(() => System.nanoTime())(accessLog, Route.handlerFlow(route))
 
     /**
-      * Wraps the route in a new request-response handler which also streams sink for pairs of
-      * enriched request and response to the given access log sink.
+      * Wraps the route in a new request-response handler which also streams pairs of enriched
+      * request and response to the given access log sink.
       * @param f enrich the request, e.g. with a timestamp
       * @param accessLog sink for pairs of enriched request and response
       * @return handler to be used in `Http().bindAndHandle` wrapping the given route
@@ -94,8 +94,8 @@ object Accessus {
   final implicit class HandlerOps(val handler: Handler[Any]) extends AnyVal {
 
     /**
-      * Wraps the request-response handler in a new one which also streams sink for pairs of
-      * request enriched with a timestamp and response to the given access log sink.
+      * Wraps the request-response handler in a new one which also streams pairs of
+      * timestamp-enriched request and response to the given access log sink.
       * @param accessLog sink for pairs of enriched request and response
       * @return handler to be used in `Http().bindAndHandle` wrapping the given handler
       */
@@ -103,8 +103,8 @@ object Accessus {
       Accessus.withAccessLog(() => System.nanoTime())(accessLog, handler)
 
     /**
-      * Wraps the request-response handler in a new one which also streams sink for pairs of
-      * enriched request and response to the given access log sink.
+      * Wraps the request-response handler in a new one which also streams pairs of enriched request
+      * and response to the given access log sink.
       * @param f enrich the request, e.g. with a timestamp
       * @param accessLog sink for pairs of enriched request and response
       * @return handler to be used in `Http().bindAndHandle` wrapping the given handler
@@ -114,8 +114,8 @@ object Accessus {
   }
 
   /**
-    * Wraps the given request-response handler in a new one which also streams sink for pairs of
-    * enriched request and response pairs to the access log given sink.
+    * Wraps the request-response handler in a new one which also streams pairs of enriched request
+    * and response to the given access log sink.
     * @param accessLog sink for pairs of enriched request and response
     * @param f enrich the request, e.g. with a timestamp
     * @param handler handler to be wrapped
@@ -131,10 +131,10 @@ object Accessus {
       val zip       = builder.add(Zip[(HttpRequest, A), HttpResponse])
       // format: OFF
       enrichReq ~> unzip.in
-      unzip.out0 ~> handler ~> bcastRes
-      bcastRes.out(1) ~> zip.in1
-      unzip.out1            ~>                    zip.in0
-      zip.out ~> accessLog
+                   unzip.out0 ~> handler ~> bcastRes
+                                            bcastRes.out(1) ~> zip.in1
+                   unzip.out1 ~>                               zip.in0
+                                                               zip.out ~> accessLog
       // format: ON
       FlowShape(enrichReq.in, bcastRes.out(0))
     })
