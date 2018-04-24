@@ -16,11 +16,12 @@
 
 package rocks.heikoseeberger.accessus
 
-import akka.actor.ActorSystem
 import akka.http.scaladsl.model.{ HttpRequest, HttpResponse }
-import akka.http.scaladsl.server.Route
-import akka.stream.{ FlowShape, Materializer }
+import akka.http.scaladsl.server.{ ExceptionHandler, RejectionHandler, Route, RoutingLog }
+import akka.http.scaladsl.settings.{ ParserSettings, RoutingSettings }
 import akka.stream.scaladsl.{ Broadcast, Flow, GraphDSL, Sink, Unzip, Zip }
+import akka.stream.{ FlowShape, Materializer }
+import scala.concurrent.ExecutionContext
 
 /**
   * Provides ways to wrap a route or request-response handler in a new handler which also streams
@@ -74,9 +75,16 @@ object Accessus {
       * @param accessLog sink for pairs of enriched request and response
       * @return handler to be used in `Http().bindAndHandle` wrapping the given route
       */
-    def withAccessLog[M](accessLog: AccessLog[Long, M])(implicit sytem: ActorSystem,
-                                                        mat: Materializer): Handler[M] =
-      Accessus.withAccessLog(() => System.nanoTime())(accessLog, Route.handlerFlow(route))
+    def withTimestampedAccessLog[M](accessLog: AccessLog[Long, M])(
+        implicit routingSettings: RoutingSettings,
+        parserSettings: ParserSettings,
+        materializer: Materializer,
+        routingLog: RoutingLog,
+        executionContext: ExecutionContext = null,
+        rejectionHandler: RejectionHandler = RejectionHandler.default,
+        exceptionHandler: ExceptionHandler = null
+    ): Handler[M] =
+      Accessus.withAccessLog(() => System.nanoTime())(accessLog, route)
 
     /**
       * Wraps the route in a new request-response handler which also streams pairs of enriched
@@ -87,8 +95,14 @@ object Accessus {
       */
     def withAccessLog[A, M](
         f: () => A
-    )(accessLog: AccessLog[A, M])(implicit sytem: ActorSystem, mat: Materializer): Handler[M] =
-      Accessus.withAccessLog(f)(accessLog, Route.handlerFlow(route))
+    )(accessLog: AccessLog[A, M])(implicit routingSettings: RoutingSettings,
+                                  parserSettings: ParserSettings,
+                                  materializer: Materializer,
+                                  routingLog: RoutingLog,
+                                  executionContext: ExecutionContext = null,
+                                  rejectionHandler: RejectionHandler = RejectionHandler.default,
+                                  exceptionHandler: ExceptionHandler = null): Handler[M] =
+      Accessus.withAccessLog(f)(accessLog, route)
   }
 
   final implicit class HandlerOps(val handler: Handler[Any]) extends AnyVal {
@@ -99,7 +113,7 @@ object Accessus {
       * @param accessLog sink for pairs of enriched request and response
       * @return handler to be used in `Http().bindAndHandle` wrapping the given handler
       */
-    def withAccessLog[M](accessLog: AccessLog[Long, M]): Handler[M] =
+    def withTimestampedAccessLog[M](accessLog: AccessLog[Long, M]): Handler[M] =
       Accessus.withAccessLog(() => System.nanoTime())(accessLog, handler)
 
     /**

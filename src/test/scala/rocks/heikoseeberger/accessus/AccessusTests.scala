@@ -18,13 +18,13 @@ package rocks.heikoseeberger.accessus
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.client.RequestBuilding.Get
-import akka.http.scaladsl.model.{ HttpRequest, HttpResponse }
 import akka.http.scaladsl.model.StatusCodes.OK
-import akka.http.scaladsl.server.{ Directives, Route }
-import akka.stream.ActorMaterializer
+import akka.http.scaladsl.model.{ HttpRequest, HttpResponse }
+import akka.http.scaladsl.server.{ Directives, RejectionHandler, Route }
+import akka.stream.{ ActorMaterializer, Materializer }
 import akka.stream.scaladsl.{ Keep, Sink, Source }
-import scala.concurrent.{ Await, Future }
 import scala.concurrent.duration.DurationInt
+import scala.concurrent.{ Await, Future }
 import utest._
 
 object AccessusTests extends TestSuite {
@@ -32,7 +32,10 @@ object AccessusTests extends TestSuite {
 
   private implicit val system: ActorSystem = ActorSystem()
 
-  private implicit val mat: ActorMaterializer = ActorMaterializer()
+  private implicit val mat: Materializer = ActorMaterializer()
+
+  private implicit val rejectionHandler: RejectionHandler =
+    RejectionHandler.newBuilder().handleNotFound(Directives.complete(OK)).result()
 
   private val route = {
     import Directives._
@@ -46,27 +49,27 @@ object AccessusTests extends TestSuite {
   override def tests: Tests =
     Tests {
       'routeOps - {
-        'withAccessLog - {
-          runAndAssert(route.withAccessLog(Sink.head))
+        'withTimestampedAccessLog - {
+          runAndAssert(route.withTimestampedAccessLog(Sink.seq))
         }
 
-        'withAccessLog2 - {
-          runAndAssert(route.withAccessLog(() => now())(Sink.head))
+        'withAccessLog - {
+          runAndAssert(route.withAccessLog(() => now())(Sink.seq))
         }
       }
 
       'handlerOps - {
-        'withAccessLog - {
-          runAndAssert(Route.handlerFlow(route).withAccessLog(Sink.head))
+        'withTimestampedAccessLog - {
+          runAndAssert(Route.handlerFlow(route).withTimestampedAccessLog(Sink.seq))
         }
 
-        'withAccessLog2 - {
-          runAndAssert(Route.handlerFlow(route).withAccessLog(() => now())(Sink.head))
+        'withAccessLog - {
+          runAndAssert(Route.handlerFlow(route).withAccessLog(() => now())(Sink.seq))
         }
       }
 
       'withAccessLog - {
-        runAndAssert(withAccessLog(() => now())(Sink.head, route))
+        runAndAssert(withAccessLog(() => now())(Sink.seq, route))
       }
     }
 
@@ -75,19 +78,23 @@ object AccessusTests extends TestSuite {
     super.utestAfterAll()
   }
 
-  private def runAndAssert(handler: Handler[Future[((HttpRequest, Long), HttpResponse)]]) = {
+  private def runAndAssert(handler: Handler[Future[Seq[((HttpRequest, Long), HttpResponse)]]]) = {
     import system.dispatcher
     val t = now()
-    Source
-      .single(Get("/test"))
+    Source(List("/test", "/"))
+      .map(Get.apply)
       .viaMat(handler)(Keep.right)
       .to(Sink.ignore)
       .run()
       .map {
-        case ((request, t0), response) =>
-          assert(request.uri.path.toString == "/test")
-          assert(response.status == OK)
-          assert(t0 > t)
+        case Seq(((req1, t1), res1), ((req2, t2), res2)) =>
+          assert(req1.uri.path.toString == "/test")
+          assert(res1.status == OK)
+          assert(t1 > t)
+
+          assert(req2.uri.path.toString == "/")
+          assert(res2.status == OK)
+          assert(t2 > t)
       }
   }
 
